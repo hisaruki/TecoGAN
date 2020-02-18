@@ -1,6 +1,6 @@
 '''
 several running examples, run with
-python3 runGan.py 1 # the last number is the run case number
+python runGan.py 1 # the last number is the run case number
 
 runcase == 1    inference a trained model
 runcase == 2    calculate the metrics, and save the numbers in csv
@@ -8,10 +8,24 @@ runcase == 3    training TecoGAN
 runcase == 4    training FRVSR
 runcase == ...  coming... data preparation and so on...
 '''
-import os, subprocess, sys, datetime, signal, shutil
+import os
+import subprocess
+import sys
+import datetime
+import signal
+import shutil
+import argparse
+from pathlib import Path
+import io
+import requests
+import zipfile
 
-runcase = int(sys.argv[1])
-print ("Testing test case %d" % runcase)
+parser = argparse.ArgumentParser()
+parser.add_argument("runcase", type=int)
+args = parser.parse_args()
+runcase = args.runcase
+
+print("Testing test case %d" % runcase)
 
 def preexec(): # Don't forward signals.
     os.setpgrp()
@@ -41,28 +55,35 @@ def folder_check(path):
 if( runcase == 0 ): # download inference data, trained models
     # download the trained model
     if(not os.path.exists("./model/")): os.mkdir("./model/")
-    cmd1 = "wget https://ge.in.tum.de/download/data/TecoGAN/model.zip -O model/model.zip;"
-    cmd1 += "unzip model/model.zip -d model; rm model/model.zip"
-    subprocess.call(cmd1, shell=True)
-    
-    # download some test data
-    cmd2 = "wget https://ge.in.tum.de/download/data/TecoGAN/vid3_LR.zip -O LR/vid3.zip;"
-    cmd2 += "unzip LR/vid3.zip -d LR; rm LR/vid3.zip"
-    subprocess.call(cmd2, shell=True)
-    
-    cmd2 = "wget https://ge.in.tum.de/download/data/TecoGAN/tos_LR.zip -O LR/tos.zip;"
-    cmd2 += "unzip LR/tos.zip -d LR; rm LR/tos.zip"
-    subprocess.call(cmd2, shell=True)
-    
-    # download the ground-truth data
-    if(not os.path.exists("./HR/")): os.mkdir("./HR/")
-    cmd3 = "wget https://ge.in.tum.de/download/data/TecoGAN/vid4_HR.zip -O HR/vid4.zip;"
-    cmd3 += "unzip HR/vid4.zip -d HR; rm HR/vid4.zip"
-    subprocess.call(cmd3, shell=True)
-    
-    cmd3 = "wget https://ge.in.tum.de/download/data/TecoGAN/tos_HR.zip -O HR/tos.zip;"
-    cmd3 += "unzip HR/tos.zip -d HR; rm HR/tos.zip"
-    subprocess.call(cmd3, shell=True)
+    data = [
+        (
+            "https://ge.in.tum.de/download/data/TecoGAN/model.zip",
+            "model"
+        ),
+        (
+            "https://ge.in.tum.de/download/data/TecoGAN/vid3_LR.zip",
+            "LR"
+        ),
+        (
+            "https://ge.in.tum.de/download/data/TecoGAN/tos_LR.zip",
+            "LR"
+        ),
+        (
+            "https://ge.in.tum.de/download/data/TecoGAN/vid4_HR.zip",
+            "HR"
+        ),
+        (
+            "https://ge.in.tum.de/download/data/TecoGAN/tos_HR.zip",
+            "HR"
+        )
+    ]
+    for url, dir in data:
+        print(url)
+        r = requests.get(url)
+        content = io.BytesIO(r.content)
+        with zipfile.ZipFile(content) as z:
+            z.extractall(dir)
+
     
 elif( runcase == 1 ): # inference a trained model
     
@@ -73,7 +94,7 @@ elif( runcase == 1 ): # inference a trained model
     
     # run these test cases one by one:
     for nn in range(len(testpre)):
-        cmd1 = ["python3", "main.py",
+        cmd1 = ["python", "main.py",
             "--cudaID", "0",            # set the cudaID here to use only one GPU
             "--output_dir",  dirstr,    # Set the place to put the results.
             "--summary_dir", os.path.join(dirstr, 'log/'), # Set the place to put the log. 
@@ -97,7 +118,7 @@ elif( runcase == 2 ): # calculate all metrics, and save the csv files, should us
 
     tar_list = [(tarstr+_) for _ in testpre]
     out_list = [(dirstr+_) for _ in testpre]
-    cmd1 = ["python3", "metrics.py",
+    cmd1 = ["python", "metrics.py",
         "--output", dirstr+"metric_log/",
         "--results", ",".join(out_list),
         "--targets", ",".join(tar_list),
@@ -139,7 +160,7 @@ elif( runcase == 3 ): # Train TecoGAN
     now_str = datetime.datetime.now().strftime("%m-%d-%H")
     train_dir = folder_check("ex_TecoGAN%s/"%now_str)
     # train TecoGAN, loss = l2 + VGG54 loss + A spatio-temporal Discriminator
-    cmd1 = ["python3", "main.py",
+    cmd1 = ["python", "main.py",
         "--cudaID", "0", # set the cudaID here to use only one GPU
         "--output_dir", train_dir, # Set the place to save the models.
         "--summary_dir", os.path.join(train_dir,"log/"), # Set the place to save the log. 
@@ -247,7 +268,7 @@ elif( runcase == 3 ): # Train TecoGAN
 elif( runcase == 4 ): # Train FRVSR, loss = l2 warp + l2 content
     now_str = datetime.datetime.now().strftime("%m-%d-%H")
     train_dir = folder_check("ex_FRVSR%s/"%now_str)
-    cmd1 = ["python3", "main.py",
+    cmd1 = ["python", "main.py",
         "--cudaID", "0", # set the cudaID here to use only one GPU
         "--output_dir", train_dir, # Set the place to save the models.
         "--summary_dir", os.path.join(train_dir,"log/"), # Set the place to save the log. 
